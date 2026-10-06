@@ -1,0 +1,73 @@
+@startuml
+title Sequence Diagram: Оформление заказа с курьерской доставкой и онлайн-оплатой
+
+actor "Клиент" as C
+participant "Frontend" as FE
+participant "API Gateway" as AG
+participant "Cart Service" as CS
+participant "Logistics Service" as LS
+participant "Checkout Service" as CH
+participant "Payment Gateway" as PG
+participant "ERP System" as ERP
+participant "Kafka" as K
+participant "Notification Service" as NS
+
+== Добавление товара и расчёт корзины ==
+
+C -> FE : Открывает корзину
+FE -> AG : GET /api/v1/cart
+AG -> CS : Запрос данных корзины
+CS -> ERP : Проверка остатков и актуальных цен
+ERP --> CS : Данные о наличии
+CS -> LS : Расчёт вариантов доставки
+LS --> CS : Слоты и стоимость
+CS --> AG : Корзина с итоговой суммой
+AG --> FE : Ответ 200 OK
+FE --> C : Отображение корзины
+
+== Оформление заказа ==
+
+C -> FE : Выбор адреса, слота и способа оплаты
+C -> FE : Нажатие "Оформить заказ"
+FE -> AG : POST /api/v1/checkout/confirm
+AG -> CH : Создание черновика заказа
+CH -> CH : Резерв товара на 15 минут
+CH -> PG : Инициализация платежа
+PG --> CH : Ссылка на платёжную форму
+CH --> AG : Ответ 201 Created
+AG --> FE : Редирект на оплату
+FE --> C : Открытие платёжной формы
+
+== Оплата и подтверждение ==
+
+C -> PG : Ввод платёжных данных
+PG --> CH : Webhook: payment.success
+CH -> CH : Проверка подписи webhook
+CH -> ERP : Подтверждение заказа
+ERP --> CH : Номер заказа + резерв подтверждён
+CH -> K : Публикация order.confirmed
+K -> NS : Событие о заказе
+NS --> C : Push/SMS уведомление
+K -> LS : Передача заказа в курьерскую службу
+CH --> FE : Статус заказа обновлён
+FE --> C : Экран "Заказ успешно оформлен"
+
+== Альтернативный сценарий: товара нет на складе ==
+
+alt Товар отсутствует на складе
+    ERP --> CS : Out of stock
+    CS --> AG : Ответ 409 Conflict
+    AG --> FE : Ошибка OUT_OF_STOCK
+    FE --> C : Сообщение "Товар закончился"
+end
+
+== Альтернативный сценарий: оплата не прошла ==
+
+alt Оплата отклонена
+    PG --> CH : Webhook: payment.failed
+    CH -> K : Публикация payment.failed
+    CH --> FE : Статус PAYMENT_FAILED
+    FE --> C : Сообщение "Попробовать снова?"
+end
+
+@enduml

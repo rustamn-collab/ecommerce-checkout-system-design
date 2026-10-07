@@ -66,6 +66,6 @@
 ## Связанные артефакты
 
 - 📋 [Use Cases](../use-cases.md)
-- 🔌 [API-контракты](../docs/api-contracts.md)
+- 🔌 [API-контракты](../api-contracts.md)
 - 🗄️ [Модель данных](../db/schema.sql)
 - 📐 Исходник диаграммы: [sequence-diagram.puml](sequence-diagram.puml)
